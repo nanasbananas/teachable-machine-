@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deine Webseite</title>
+    <style>
+        body {
+            background-color: #dcdcdc; /* Etwas dunklerer Hintergrund */
+            font-family: Didot, serif; /* Schriftart Didot */
+            margin: 0;
+            padding: 0;
+            overflow: visible; /* Scrollbalken bei Bedarf anzeigen */
+            overflow-y: auto; /* Vertikaler Scrollbalken */
+        }
+
+        .container {
+            width: 100%;
+            height: 100%; /* Vollbildhöhe */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Oben ausgerichtet */
+            padding-top: 50px; /* Abstand vom oberen Rand */
+        }
+
+        .frame {
+            background-color: #333; /* Dunkelgrauer Rahmenhintergrund */
+            border: 10px solid black; /* Schwarzer Rahmen */
+            border-radius: 20px; /* Gerundete Ecken */
+            padding: 20px;
+            width: 80%; /* Breiterer Kasten */
+            max-width: 1200px; /* Maximale Breite des Rahmens */
+            max-height: 90%; /* Maximale Höhe des Rahmens */
+            
+        }
+
+        /* Stil für den Button */
+        .button {
+            height: 80px; /* Höhe des Buttons */
+            width: 120px; /* Breite des Buttons */
+            background-color: #DF0E69; /* Hintergrundfarbe des Buttons */
+            color: #070101; /* Textfarbe des Buttons */
+            border: none; /* Kein Rahmen */
+            border-radius: 10px; /* Abgerundete Ecken */
+            font-size: 18px; /* Schriftgröße */
+            cursor: pointer; /* Zeiger bei Mouseover */
+            transition: background-color 0.3s ease; /* Übergangseffekt */
+        }
+
+        .button:hover {
+            background-color: #ae0a53; /* Hintergrundfarbe beim Mouseover */
+        }
+
+        .button:disabled {
+            background-color: #ccc; /* Hintergrundfarbe bei deaktiviertem Zustand */
+            cursor: not-allowed; /* Mauszeiger nicht erlaubt */
+        }
+
+        /* Beispielstil für den Inhalt */
+        .content {
+            color: #fff; /* Weiße Schriftfarbe */
+            text-align: center;
+        }
+
+        /* Beispielstil für Überschriften */
+        h1 {
+            font-size: 36px;
+        }
+
+        p {
+            font-size: 18px;
+        }
+
+        /* Container für das Bild */
+        .image-container {
+            margin-top: 20px; /* Abstand zum vorherigen Element */
+            display: flex;
+            justify-content: center; /* Zentriert das Bild horizontal */
+        }
+
+        /* Bildstil */
+        .result-image {
+            max-width: calc(100% - 20px); /* Maximale Breite des Rahmens minus 20px Rand */
+            height: auto; /* Automatische Höhe, um das Seitenverhältnis beizubehalten */
+            border-radius: 10px; /* Abgerundete Ecken */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Schatten für das Bild */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="frame">
+        <div class="content">
+            <h1>Which cartoon character matches your voice?</h1>
+            <br>
+            <p>Press the button and speak to find out who you are!</p>
+            <br>
+            <!-- Button mit der Klasse "button" -->
+            <button type="button" class="button" onclick="init()" id="startButton">Start</button>
+            <br>
+            <br>
+            <div id="label-container"></div>
+            <div id="counter"></div>
+            <div id="results"></div>
+            <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+
+            <script type="text/javascript">
+                // more documentation available at
+                // https://github.com/tensorflow/tfjs-models/tree/master/speech-commands
+
+                // the link to your model provided by Teachable Machine export panel
+                const URL = "https://teachablemachine.withgoogle.com/models/YCBtqVtoz/";
+
+                let buttonClicked = false;
+
+                const results = {};
+                async function createModel() {
+                    const checkpointURL = URL + "model.json"; // model topology
+                    const metadataURL = URL + "metadata.json"; // model metadata
+
+                    const recognizer = speechCommands.create(
+                        "BROWSER_FFT", // fourier transform type, not useful to change
+                        undefined, // speech commands vocabulary feature, not useful for your models
+                        checkpointURL,
+                        metadataURL);
+
+                    // check that model and metadata are loaded via HTTPS requests.
+                    await recognizer.ensureModelLoaded();
+
+                    return recognizer;
+                }
+
+                async function init() {
+                    if (buttonClicked) return;
+                    buttonClicked = true;
+
+                    const recognizer = await createModel();
+                    const classLabels = recognizer.wordLabels(); // get class labels
+                    // const labelContainer = document.getElementById("label-container");
+
+                    // Reset results
+                    Object.keys(results).forEach(key => delete results[key]);
+
+                    // listen() takes two arguments:
+                    // 1. A callback function that is invoked anytime a word is recognized.
+                    // 2. A configuration object with adjustable fields
+                    recognizer.listen(result => {
+                        const maxScoreIndex = result.scores.indexOf(Math.max(...result.scores));
+                        const maxScoreLabel = classLabels[maxScoreIndex];
+
+                        // Check if the highest probability exceeds the threshold and it's not background noise
+                        if (result.scores[maxScoreIndex] > 0.05 && maxScoreLabel !== 'Hintergrundgeräusche') {
+                            console.log(maxScoreLabel);
+                            // labelContainer.innerHTML = maxScoreLabel;
+                            if (Object.hasOwn(results, maxScoreLabel)) {
+                                results[maxScoreLabel] = results[maxScoreLabel] + 1;
+                            } else {
+                                results[maxScoreLabel] = 1;
+                            }
+                        }
+                    }, {
+                        includeSpectrogram: true, // in case listen should return result.spectrogram
+                        probabilityThreshold: 0, // Set to 0 to capture all results initially
+                        invokeCallbackOnNoiseAndUnknown: true,
+                        overlapFactor: 0.50 // probably want between 0.5 and 0.75. More info in README
+                    });
+
+                    // Stop the recognition in 5 seconds.
+                    let counter = 10;
+                    const counterElement = document.querySelector('#counter');
+                    const interval = setInterval(() => {
+                        counterElement.innerText = counter;
+
+                        if (counter === 0) {
+                            clearInterval(interval);
+                            console.log('stop')
+                            recognizer.stopListening();
+                            console.log(results);
+                            const maxValue = Math.max(...Object.values(results));
+
+                            const keysOfHighestValue = Object.keys(results).filter(key => results[key] === maxValue);
+
+                            // remove counter element
+
+                            console.log(keysOfHighestValue); // Output will be ['key1', 'key3']
+                            const resultsElement = document.querySelector("#results")
+                            keysOfHighestValue.forEach(key => {
+                                const el = document.createElement("p");
+                                const imgContainer = document.createElement("div"); // Container für das Bild
+                                const img = document.createElement("img");
+                                img.classList.add("result-image"); // Klasse für das Bild hinzufügen
+                                if (key === "Shrek") {
+                                    img.src = "/Bilder/Shrek.jpeg";
+                                }
+                                if (key === "Esel(Shrek)") {
+                                    img.src = "/Bilder/Esel_Shrek.jpg";
+                                }
+                                if (key === "Simba") {
+                                    img.src = "/Bilder/Simba.jpeg";
+                                }
+                                if (key === "Anna Frozen") {
+                                    img.src = "/Bilder/Anna_Frozen.jpg";
+                                }
+                                if (key === "Woody(Toy Story)") {
+                                    img.src = "/Bilder/Woody_Toy_Story.webp";
+                                }
+                                if (key === "Joy(Inside Out)") {
+                                    img.src = "/Bilder/Joy_Inside_Out.webp";
+                                }
+                                if (key === "Sadness(Inside Out)") {
+                                    img.src = "/Bilder/Sadness_Inside_Out.";
+                                }
+                                if (key === "Bing Bong(Inside Out)") {
+                                    img.src = "/Bilder/BingBong_Inside_Out.webp";
+                                }
+                                if (key === "Marlin(Finding Nemo)") {
+                                    img.src = "/Bilder/Marlin_Findet_Nemo.webp";
+                                }
+                                if (key === "Nemo") {
+                                    img.src = "/Bilder/Nemo_Findet_Nemo.webp";
+                                }
+                                if (key === "Dory(Finding Nemo)") {
+                                    img.src = "/Bilder/Dori_Findet_Nemo.jpeg";
+                                }
+                                if (key === "Sandy Cheeks(Spongebob)") {
+                                    img.src = "/Bilder/Sandy_Cheeks_Spongebob.webp";
+                                }
+                                if (key === "Patrick(Spongebob)") {
+                                    img.src = "/Bilder/Patrick_Star_Spongebob.jpeg";
+                                }
+                                if (key === "Mabel Pines (Gravity Falls)") {
+                                    img.src = "/Bilder/Mabel_Pines.jpeg";
+                                }
+                                if (key === "Marty(Madagascar)") {
+                                    img.src = "/Bilder/Marty_Madagascar.webp";
+                                }
+                                el.innerText = key;
+                                imgContainer.appendChild(img); // Bild in den Container einfügen
+                                resultsElement.appendChild(el);
+                                resultsElement.appendChild(imgContainer); // Bildcontainer in das Ergebniselement einfügen
+                            });
+
+                            // Re-enable the button
+                            buttonClicked = false;
+                            document.getElementById('startButton').disabled = false;
+                        }
+                        counter--;
+                    }, 1000);
+
+                    // Disable the button after clicking
+                    document.getElementById('startButton').disabled = true;
+                }
+            </script>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
